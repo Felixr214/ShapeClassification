@@ -9,8 +9,8 @@ import models
 
 np.random.seed(0)
 
-classes = [0, 1, 2, 3, 4]
-train_shape_count = len(classes)*500
+classes = [0, 1, 2, 3]
+train_shape_count = len(classes)*3000
 test_shape_count = int(train_shape_count * 0.2)
 
 train_ds = dataset.ShapeDataset(deepcopy(classes), train_shape_count)
@@ -68,14 +68,13 @@ for epoch in range(10):
 
 
 label_translation = {
-    0: "rectangle",
-    1: "circle",
-    2: "triangle",
-    3: "diamond",
-    4: "pentagram",
-    5: "hexagon",
-    6: "heptagon",
-    7: "octagon"
+    0: "circle",
+    1: "triangle",
+    2: "rectangle",
+    3: "pentagon",
+    4: "hexagon",
+    5: "heptagon",
+    6: "octagon"
 }
 
 for x, y in eval_loader:

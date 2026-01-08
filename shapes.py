@@ -101,20 +101,22 @@ class Edge:
         return v * self.n >= 0
 
 def createRandomPolygon(vertices):
-    start = Vertex(*np.random.random_integers(10, 410, 2))
+    start = Vertex(128, 128)
+    start_angle = np.random.random_integers(0, 359) *2*np.pi/360
     vertices_ = []
     if vertices == 3:
         for a in range(3):
-            vertices_.append(Vertex(*np.random.random_integers(0, 512, 2)))
+            vertices_.append(Vertex(*np.random.random_integers(0, 255, 2)))
     else:
         angles = 2*np.pi * np.arange(0, 360, 360/vertices) / 360
-        dist = np.random.random_integers(5, min(start.x, start.y, 512 - start.x, 512 - start.y))
+        dist = np.random.random_integers(15, 127)
 
         for angle in angles:
+            angle += start_angle
             v = Vertex(start.x + int(np.sin(angle) * dist), start.y + int(np.cos(angle) * dist))
             vertices_.append(v)
 
-    label = vertices - 1
+    label = vertices - 2
     polygon = Polygon(vertices_)
     return polygon, label
 
@@ -136,12 +138,16 @@ def getEdges(vertices):
 def addShape(arr, shape, position):
     shape_im = shape.get()
     y0, x0 = position
-    x1, y1 = shape_im.shape
-    x1 = x0 + x1
-    y1 = y0 + y1
-    if y1 >= 512:
-        y1 = 511
-    if x1 >= 512:
-        x1 = 511
-    arr[x0:x1, y0:y1] = np.logical_or(shape_im[:x1-x0, :y1-y0], arr[x0:x1, y0:y1])
+    x_len, y_len = shape_im.shape
+    x1 = x0 + x_len
+    y1 = y0 + y_len
+    if y1 >= 256:
+        y1 = 255
+        y0 = 255 - y_len
+
+    if x1 >= 256:
+        x1 = 255
+        x0 = 255 - x_len
+
+    arr[x0:x1, y0:y1] = np.logical_or(shape_im, arr[x0:x1, y0:y1])
     return arr

@@ -23,7 +23,7 @@ class ShapeCNN(nn.Module):
 
         self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(128*4*4, 128),
+            nn.Linear(128*2*2, 128),
             nn.ReLU(),
             nn.Linear(128, num_classes)
         )
