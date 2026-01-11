@@ -120,6 +120,22 @@ def createRandomPolygon(vertices):
     polygon = Polygon(vertices_)
     return polygon, label
 
+def createPolygon(vertices, radius, angle):
+    start = Vertex(128, 128)
+    start_angle = angle
+    vertices_ = []
+    angles = 2 * np.pi * np.arange(0, 360, 360 / vertices) / 360
+    dist = radius
+
+    for angle in angles:
+        angle += start_angle
+        v = Vertex(start.x + int(np.sin(angle) * dist), start.y + int(np.cos(angle) * dist))
+        vertices_.append(v)
+
+    label = vertices - 2
+    polygon = Polygon(vertices_)
+    return polygon, label
+
 def getAngle(mid, v0, v):
     v_rel = v - mid
     k = min(1, max(-1, (v0 * v_rel) / (v0.length() * v_rel.length())))
@@ -151,3 +167,7 @@ def addShape(arr, shape, position):
 
     arr[x0:x1, y0:y1] = np.logical_or(shape_im, arr[x0:x1, y0:y1])
     return arr
+
+def get_image(shape, position):
+    img = np.zeros([256, 256])
+    return addShape(img, shape, position)

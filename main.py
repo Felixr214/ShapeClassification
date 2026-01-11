@@ -7,15 +7,12 @@ from copy import deepcopy
 import dataset
 import models
 
-np.random.seed(0)
-
 classes = [0, 1, 2, 3]
-train_shape_count = len(classes)*3000
+train_shape_count = len(classes)*2000
 test_shape_count = int(train_shape_count * 0.2)
+eval_shape_count = int(len(classes) * 3)
 
-train_ds = dataset.ShapeDataset(deepcopy(classes), train_shape_count)
-test_ds = dataset.ShapeDataset(deepcopy(classes), test_shape_count)
-eval_ds = dataset.ShapeDataset(deepcopy(classes), len(classes)*3)
+train_ds, test_ds, eval_ds = dataset.create_datasets(classes, train_shape_count, test_shape_count, eval_shape_count)
 
 train_loader = DataLoader(train_ds, batch_size=64)
 test_loader = DataLoader(test_ds, batch_size=64)
@@ -24,9 +21,6 @@ eval_loader = DataLoader(eval_ds, batch_size=64)
 device = torch.device("xpu")
 m = models.ShapeCNN(len(classes))
 m.to(device)
-
-criterion = torch.nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(m.parameters(), lr=0.001)
 
 def train_epoch(model, loader):
     model.train()
@@ -60,11 +54,16 @@ def eval_epoch(model, loader):
 
     return correct / total
 
+lr = 0.001
+criterion = torch.nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(m.parameters(), lr=lr)
+last_acc = 0
+
 for epoch in range(10):
     train_loss = train_epoch(m, train_loader)
-    test_loss = eval_epoch(m, test_loader)
+    test_acc = eval_epoch(m, test_loader)
 
-    print(f"Epoch {epoch+1}: Loss: {train_loss:.4f} | Test Acc: {test_loss:.3f}")
+    print(f"Epoch {epoch+1}: Loss: {train_loss:.4f} | Test Acc: {test_acc:.3f}")
 
 
 label_translation = {
