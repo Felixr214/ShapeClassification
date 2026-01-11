@@ -78,6 +78,7 @@ def create_datasets(classes, train_size, test_size, eval_size = 0):
             radii = np.arange(min_radius, max_radius, radius_stepsize)
             angle = (2 * np.pi / 360) * np.random.random_integers(0, 359)
             np.random.shuffle(radii)
+            radii = radii[:min(len(radii), int(np.cbrt(size)))]
             for radius in radii:
                 if total >= size:
                     break

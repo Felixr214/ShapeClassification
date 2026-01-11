@@ -7,8 +7,8 @@ from copy import deepcopy
 import dataset
 import models
 
-classes = [0, 1, 2, 3]
-train_shape_count = len(classes)*2000
+classes = [0, 1, 2, 3, 4, 5, 6]
+train_shape_count = len(classes)*5000
 test_shape_count = int(train_shape_count * 0.2)
 eval_shape_count = int(len(classes) * 3)
 
@@ -18,6 +18,7 @@ train_loader = DataLoader(train_ds, batch_size=64)
 test_loader = DataLoader(test_ds, batch_size=64)
 eval_loader = DataLoader(eval_ds, batch_size=64)
 
+print("Dataset ready")
 device = torch.device("xpu")
 m = models.ShapeCNN(len(classes))
 m.to(device)
