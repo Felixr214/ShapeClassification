@@ -151,23 +151,23 @@ def getEdges(vertices):
 
     return edges
 
-def addShape(arr, shape, position):
+def addShape(arr, shape, position, size=256):
     shape_im = shape.get()
     y0, x0 = position
     x_len, y_len = shape_im.shape
     x1 = x0 + x_len
     y1 = y0 + y_len
-    if y1 >= 256:
-        y1 = 255
-        y0 = 255 - y_len
+    if y1 >= size:
+        y1 = size-1
+        y0 = size-1 - y_len
 
-    if x1 >= 256:
-        x1 = 255
-        x0 = 255 - x_len
+    if x1 >= size:
+        x1 = size-1
+        x0 = size-1 - x_len
 
     arr[x0:x1, y0:y1] = np.logical_or(shape_im, arr[x0:x1, y0:y1])
     return arr
 
-def get_image(shape, position):
-    img = np.zeros([256, 256])
-    return addShape(img, shape, position)
+def get_image(shape, position, size=256):
+    img = np.zeros([size, size])
+    return addShape(img, shape, position, size)

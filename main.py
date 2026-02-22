@@ -1,38 +1,35 @@
 import torch
 import numpy as np
-import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
-from copy import deepcopy
 
 import dataset
 import models
 
+np.random.seed(1)
+
 classes = [0, 1, 2, 3, 4, 5, 6]
-train_shape_count = len(classes)*5000
-test_shape_count = int(train_shape_count * 0.2)
-eval_shape_count = int(len(classes) * 3)
 
-train_ds, test_ds, eval_ds = dataset.create_datasets(classes, train_shape_count, test_shape_count, eval_shape_count)
-
-train_loader = DataLoader(train_ds, batch_size=64)
-test_loader = DataLoader(test_ds, batch_size=64)
-eval_loader = DataLoader(eval_ds, batch_size=64)
-
-print("Dataset ready")
 device = torch.device("xpu")
 m = models.ShapeCNN(len(classes))
 m.to(device)
+
+def totalLoss(pred_class, pred_box, target_class, target_box):
+    class_loss = class_criterion(pred_class, target_class)
+    box_loss = box_criterion(pred_box, target_box)
+
+    return class_loss + 3 * box_loss
 
 def train_epoch(model, loader):
     model.train()
     total_loss = 0
 
-    for x, y in loader:
-        x, y = x.to(device), y.to(device)
+    for img, class_label, box in loader:
+        img, class_label, box = img.to(device), class_label.to(device), box.to(device)
 
         optimizer.zero_grad()
-        outputs = model(x)
-        loss = criterion(outputs, y)
+        pred_class, pred_box = model(img)
+
+        loss = totalLoss(pred_class, pred_box, class_label, box)
         loss.backward()
         optimizer.step()
 
@@ -40,53 +37,34 @@ def train_epoch(model, loader):
 
     return total_loss / len(loader)
 
+
 def eval_epoch(model, loader):
     model.eval()
-    correct = 0
-    total = 0
 
-    with torch.no_grad():
-        for x, y in loader:
-            x, y = x.to(device), y.to(device)
-            outputs = model(x)
-            preds = outputs.argmax(dim=1)
-            correct += (preds == y).sum().item()
-            total += y.size(0)
+    total_mse = 0
+    total_mae = 0
+    total_samples = 0
 
-    return correct / total
 
-lr = 0.001
-criterion = torch.nn.CrossEntropyLoss()
+lr = 0.003
+class_criterion = torch.nn.CrossEntropyLoss()
+box_criterion = torch.nn.MSELoss()
 optimizer = torch.optim.Adam(m.parameters(), lr=lr)
-last_acc = 0
-
-for epoch in range(10):
-    train_loss = train_epoch(m, train_loader)
-    test_acc = eval_epoch(m, test_loader)
-
-    print(f"Epoch {epoch+1}: Loss: {train_loss:.4f} | Test Acc: {test_acc:.3f}")
+imagesPerShape = 81
 
 
-label_translation = {
-    0: "circle",
-    1: "triangle",
-    2: "rectangle",
-    3: "pentagon",
-    4: "hexagon",
-    5: "heptagon",
-    6: "octagon"
-}
+for epoch in range(5000):
+    ds = dataset.DynamicShapesDataset(classes, imagesPerShape)
+    batch_size = len(ds.labels)
+    data_loader = DataLoader(ds, batch_size=batch_size)
+    train_loss = train_epoch(m, data_loader)
+    if epoch % 50 == 0:
+        print(f"Epoch {epoch + 1}: Loss: {train_loss:.4f}")
 
-for x, y in eval_loader:
-    x_ = deepcopy(x).numpy()
-    x, y = x.to(device), y.to(device)
-    outputs = m(x)
-    preds = outputs.argmax(dim=1)
-    preds = preds.detach().cpu().numpy()
+    continue
+    if epoch % 1000 == 0:
+        data_loader = DataLoader(test_dataset, batch_size=batch_size)
+        metrics = eval_epoch(m, data_loader)
+        print(f"Test Acc: RMSE: {metrics['rmse']:.3f}")
 
-i = 0
-for x in x_:
-    plt.imshow(x[0])
-    plt.title(label_translation[preds[i]])
-    plt.show()
-    i+=1
+torch.save(m.state_dict(), "trained_models/model.pth")

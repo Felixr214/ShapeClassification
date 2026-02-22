@@ -1,4 +1,5 @@
 import torch.nn as nn
+import torch
 
 class ShapeCNN(nn.Module):
     def __init__(self, num_classes):
@@ -17,19 +18,26 @@ class ShapeCNN(nn.Module):
 
             nn.Conv2d(64, 128, 4, 2),
             nn.ReLU(),
-            nn.MaxPool2d(2)
+            nn.MaxPool2d(2),
             #7x7
+
+            nn.Flatten(),
+            nn.Linear(128 * 7 * 7, 128),
+            nn.ReLU()
         )
 
         self.classifier = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(128*7*7, 128),
-            nn.ReLU(),
-            nn.Linear(128, num_classes)
+
         )
+
+        self.class_head = nn.Linear(128, num_classes)
+        self.box_head = nn.Linear(128, 3)
 
 
     def forward(self, x):
         x = self.features(x)
-        return self.classifier(x)
+        class_logits = self.class_head(x)
+        bbox = torch.sigmoid(self.box_head(x))
+
+        return class_logits, bbox
 
