@@ -133,7 +133,7 @@ class DynamicShapesDataset(Dataset):
                     else:
                         shape, shape_label = shapes.createPolygon(class_+2, radius, angle)
                         img = shapes.get_image(shape, [x, y], self.x_range)
-                    label = [class_, 2*radius/self.x_range, x/self.x_range, y/self.y_range]
+                    label = [class_, (2*radius+10)/self.x_range, (x-5)/self.x_range, (y-5)/self.y_range]
                     ds.append([img, label])
 
         np.random.shuffle(ds)

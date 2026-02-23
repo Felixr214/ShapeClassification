@@ -37,13 +37,13 @@ def train_epoch(model, loader):
 
     return total_loss / len(loader)
 
-lr = 0.003
+lr = 0.002
 class_criterion = torch.nn.CrossEntropyLoss()
 box_criterion = torch.nn.MSELoss()
 optimizer = torch.optim.Adam(m.parameters(), lr=lr)
 imagesPerShape = 81
 
-for epoch in range(5000):
+for epoch in range(3000):
     ds = dataset.DynamicShapesDataset(classes, imagesPerShape)
     batch_size = len(ds.labels)
     data_loader = DataLoader(ds, batch_size=batch_size)
