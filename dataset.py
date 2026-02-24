@@ -110,38 +110,33 @@ def create_datasets(classes, train_size, test_size, eval_size = 0):
 
 
 class DynamicShapesDataset(Dataset):
-    def __init__(self, classes, imagesPerShape):
+    def __init__(self, classes, size):
         self.x_range, self.y_range = 256, 256
         self.dataset = []
         self.labels = []
         self.classes = classes
-        self.imagesPerShape = imagesPerShape
+        self.size = size
         self.build()
 
 
     def build(self):
-        values = int(np.sqrt(self.imagesPerShape))
-        ds = []
-        for a in range(values):
+        for a in range(self.size):
             x, y = np.random.randint(20, self.x_range - 20), np.random.randint(20, self.y_range - 20)
-            for c in range(values):
-                radius = np.random.randint(10, min(min(x, y), self.x_range - max(x, y)))
-                angle = int(np.pi*np.random.randint(359)/180)
-                for class_ in self.classes:
-                    if class_ == 0:
-                        img = shapes.get_image(shapes.Circle(radius), [x, y], self.x_range)
-                    else:
-                        shape, shape_label = shapes.createPolygon(class_+2, radius, angle)
-                        img = shapes.get_image(shape, [x, y], self.x_range)
-                    label = [class_, (2*radius+10)/self.x_range, (x-5)/self.x_range, (y-5)/self.y_range]
-                    ds.append([img, label])
+            radius = np.random.randint(10, min(min(x, y), self.x_range - max(x, y)))
+            angle = int(np.pi*np.random.randint(359)/180)
+            shape_class = np.random.choice(self.classes)
+            if shape_class == 0:
+                img = shapes.get_image(shapes.Circle(radius), [x, y], self.x_range)
+            else:
+                shape, shape_label = shapes.createPolygon(shape_class+2, radius, angle)
+                img = shapes.get_image(shape, [x, y], self.x_range)
 
-        np.random.shuffle(ds)
-        ds = tuple(zip(*ds))
-        self.dataset = np.array(ds[0])
-        self.labels = np.array(ds[1])
+            label = [shape_class, (2*radius+10)/self.x_range, (x-5)/self.x_range, (y-5)/self.y_range]
+            self.dataset.append(img)
+            self.labels.append(label)
 
-
+        self.dataset = np.array(self.dataset)
+        self.labels = np.array(self.labels)
 
 
     def __len__(self):

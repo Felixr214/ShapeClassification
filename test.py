@@ -17,7 +17,7 @@ m = models.ShapeCNN(len(classes))
 m.load_state_dict(torch.load("trained_models/model.pth"))
 m.to(device)
 
-test_dataset = dataset.DynamicShapesDataset(classes, 1)
+test_dataset = dataset.DynamicShapesDataset(classes, 10)
 
 label_translation = {
     0: "circle",

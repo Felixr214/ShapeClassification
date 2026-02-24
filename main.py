@@ -17,7 +17,7 @@ def totalLoss(pred_class, pred_box, target_class, target_box):
     class_loss = class_criterion(pred_class, target_class)
     box_loss = box_criterion(pred_box, target_box)
 
-    return class_loss + 6 * box_loss
+    return class_loss + 8 * box_loss
 
 def train_epoch(model, loader):
     model.train()
@@ -41,10 +41,10 @@ lr = 0.002
 class_criterion = torch.nn.CrossEntropyLoss()
 box_criterion = torch.nn.MSELoss()
 optimizer = torch.optim.Adam(m.parameters(), lr=lr)
-imagesPerShape = 81
+dataset_size = 570
 
-for epoch in range(3000):
-    ds = dataset.DynamicShapesDataset(classes, imagesPerShape)
+for epoch in range(2000):
+    ds = dataset.DynamicShapesDataset(classes, dataset_size)
     batch_size = len(ds.labels)
     data_loader = DataLoader(ds, batch_size=batch_size)
     train_loss = train_epoch(m, data_loader)
