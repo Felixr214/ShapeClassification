@@ -8,16 +8,9 @@ from copy import deepcopy
 import dataset
 import models
 
-np.random.seed(1)
+np.random.seed(17)
 
 classes = [0, 1, 2, 3, 4, 5, 6]
-
-device = torch.device("xpu")
-m = models.ShapeCNN(len(classes))
-m.load_state_dict(torch.load("trained_models/model.pth"))
-m.to(device)
-
-test_dataset = dataset.DynamicShapesDataset(classes, 10)
 
 label_translation = {
     0: "circle",
@@ -28,6 +21,15 @@ label_translation = {
     5: "heptagon",
     6: "octagon"
 }
+
+device = torch.device("xpu")
+m = models.ShapeCNN(len(classes))
+m.load_state_dict(torch.load("trained_models/model.pth"))
+m.to(device)
+
+test_dataset = dataset.DynamicShapesDataset(classes, 10)
+
+
 
 batch_size = len(test_dataset)
 data_loader = DataLoader(test_dataset, batch_size=batch_size)
