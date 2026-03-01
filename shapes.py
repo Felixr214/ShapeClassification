@@ -11,6 +11,7 @@ class Polygon:
         self.edges = getEdges(self.vertices)
         self.x_range = [min(x), max(x)]
         self.y_range = [min(y), max(y)]
+        self.center = None
         for edge in self.edges:
             for vertex in self.vertices:
                 edge.calibrate(vertex)
@@ -25,17 +26,10 @@ class Polygon:
         img = img.T
         return img
 
-class Rectangle:
-    def __init__(self, a, b):
-        self.a = b
-        self.b = a
-
-    def get(self):
-        return np.ones([self.a, self.b])
-
 class Circle:
     def __init__(self, r):
         self.r = r
+        self.center = None
 
     def get(self):
         x = self.r
@@ -134,7 +128,7 @@ def createPolygon(vertices, radius, angle):
 
     label = vertices - 2
     polygon = Polygon(vertices_)
-    return polygon, label
+    return polygon
 
 def getAngle(mid, v0, v):
     v_rel = v - mid
@@ -166,8 +160,10 @@ def addShape(arr, shape, position, size=256):
         x0 = size-1 - x_len
 
     arr[x0:x1, y0:y1] = np.logical_or(shape_im, arr[x0:x1, y0:y1])
-    return arr
+    shape.center = (y0 + 0.5*(y1-y0))/size, (x0 + 0.5*(x1-x0))/size
+    #return arr
 
 def get_image(shape, position, size=256):
     img = np.zeros([size, size])
-    return addShape(img, shape, position, size)
+    img = addShape(img, shape, position, size)
+    return img

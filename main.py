@@ -8,47 +8,106 @@ import models
 np.random.seed(1)
 
 classes = [0, 1, 2, 3, 4, 5, 6]
+grid_size = 5
+max_shapes_per_image = grid_size
 
 device = torch.device("xpu")
-m = models.ShapeCNN(len(classes))
+m = models.ShapeCNN(len(classes), grid_size)
 m.to(device)
 
-def totalLoss(pred_class, pred_box, target_class, target_box):
-    class_loss = class_criterion(pred_class, target_class)
-    box_loss = box_criterion(pred_box, target_box)
+steps = 5000
+w = grid_size*2
+class_criterion = torch.nn.CrossEntropyLoss(reduction='none')  # no reduction, we'll mask manually
+objectness_criterion = torch.nn.BCEWithLogitsLoss(reduction='none')  # per-cell
+box_criterion = torch.nn.MSELoss(reduction='none')  # fallback, can replace with GIoU
+optimizer = torch.optim.SGD(
+    m.parameters(),
+    lr=0.05,
+    momentum=0.9,
+    weight_decay=1e-4,
+    nesterov=True
+)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=steps)
+dataset_size = 500
 
-    return class_loss + 8 * box_loss
+# ----- Loss components -----
 
-def train_epoch(model, loader):
+
+eps = 1e-6  # small value to avoid division by zero
+
+# pos_weight for objectness (to balance rare positives vs background)
+w = grid_size * 2
+pos_weight = torch.tensor([w]).to(device)
+
+def totalLoss(pred_class, pred_box, pred_objectness, target_class, target_box, target_objectness):
+    """
+    YOLO-style total loss for synthetic shapes.
+
+    pred_class: [B, G, G, num_classes] logits
+    pred_box:   [B, 3, G, G] (x_center, y_center, size) normalized 0..1
+    pred_objectness: [B, G, G] logits
+    target_class: [B, G, G] int labels
+    target_box:   [B, G, G, 3] floats
+    target_objectness: [B, G, G] 0/1
+    """
+
+    mask = target_objectness.float()  # 1 for object cells, 0 for background
+
+    # -------- Class loss --------
+    class_loss_raw = class_criterion(pred_class, target_class)  # [B, G, G]
+    class_loss = (class_loss_raw * mask).sum() / (mask.sum() + eps)
+
+    # -------- Box loss --------
+
+    box_loss_raw = box_criterion(pred_box, target_box).mean(1)  # reduce last dim (4)
+    box_loss = (box_loss_raw * mask).sum() / (mask.sum() + eps)
+
+    # -------- Objectness loss --------
+    objectness_loss_raw = objectness_criterion(pred_objectness, target_objectness)
+    # apply pos_weight: scale positive cells
+    objectness_loss = ((objectness_loss_raw * mask * w) + (objectness_loss_raw * (1 - mask))).mean()
+
+    # -------- Weighted sum --------
+    # typical YOLO weights: box loss stronger
+    total_loss = class_loss + objectness_loss + 3 * box_loss
+
+    return total_loss
+
+def train_step(model, loader):
     model.train()
-    total_loss = 0
+    batch = next(iter(loader))
+    img, class_label, objectness_label, box_label = batch
 
-    for img, class_label, box in loader:
-        img, class_label, box = img.to(device), class_label.to(device), box.to(device)
+    img = img.to(device)
+    class_label = class_label.to(device)
+    box_label = box_label.to(device)
+    objectness_label = objectness_label.to(device)
 
-        optimizer.zero_grad()
-        pred_class, pred_box = model(img)
+    optimizer.zero_grad()
 
-        loss = totalLoss(pred_class, pred_box, class_label, box)
-        loss.backward()
-        optimizer.step()
+    pred_class, pred_objectness, pred_box = model(img)
 
-        total_loss += loss.item()
+    loss = totalLoss(
+        pred_class,
+        pred_box,
+        pred_objectness,
+        class_label,
+        box_label,
+        objectness_label
+    )
 
-    return total_loss / len(loader)
+    loss.backward()
+    optimizer.step()
+    scheduler.step()
 
-lr = 0.002
-class_criterion = torch.nn.CrossEntropyLoss()
-box_criterion = torch.nn.MSELoss()
-optimizer = torch.optim.Adam(m.parameters(), lr=lr)
-dataset_size = 570
+    return loss.item()
 
-for epoch in range(2000):
-    ds = dataset.DynamicShapesDataset(classes, dataset_size)
+for step in range(steps):
+    ds = dataset.DynamicShapesDataset(classes, dataset_size, grid_size, max_shapes_per_image)
     batch_size = len(ds.labels)
     data_loader = DataLoader(ds, batch_size=batch_size)
-    train_loss = train_epoch(m, data_loader)
-    if epoch % 50 == 0:
-        print(f"Epoch {epoch + 1}: Loss: {train_loss:.4f}")
+    train_loss = train_step(m, data_loader)
+    if step % 50 == 0:
+        print(f"Step {step + 1}: Loss: {train_loss:.4f}")
 
 torch.save(m.state_dict(), "trained_models/model.pth")
