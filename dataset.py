@@ -1,78 +1,88 @@
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-from copy import deepcopy
 
-import shapes
+torch.manual_seed(1)
+
+xx, yy = torch.meshgrid(torch.arange(0, 256), torch.arange(0, 256), indexing="ij")
+coords = torch.stack([xx, yy, torch.ones_like(xx)], dim=-1).unsqueeze(2)
+angle_offset = {}
+for v in range(3, 10):
+    angle_offset[v] = (2 * torch.pi * torch.arange(0, 360, 360 / v) / 360)
+
+def getCircle(radius, x, y):
+    return (xx - x) ** 2 + (yy - y) ** 2 < radius**2
+
+def getPolygon(vertices, radius, angle, x, y):
+    start = torch.tensor([x, y, 1], dtype=torch.float32)
+
+    angles = angle + angle_offset[vertices]
+    points = torch.stack([start[0] - torch.sin(angles) * radius,
+                          start[1] - torch.cos(angles) * radius,
+                          torch.ones(vertices)], dim=-1)
+
+    edges = torch.cross(points.roll(1, 0), points, dim=-1)
+    edge_vals = (coords * edges.view(1, 1, vertices, 3)).sum(-1)
+    inverse = -(start * edges).sum(-1)
+    mask = inverse.view(1, 1, vertices) * edge_vals <= 0
+    return mask.all(dim=-1)
+
+def getRandomImage(shapes, max_shapes, grid_cells):
+    shapesPerImage = 1
+    ppc = 256 // grid_cells
+    img = torch.zeros([256, 256])
+    label = torch.zeros([5, grid_cells, grid_cells])
+    if max_shapes > 1:
+        shapesPerImage = torch.randint(1, max_shapes+1, [1])
+
+    for a in range(shapesPerImage):
+        shape_class = int(shapes[torch.randint(0, len(shapes), [1])])
+        radius = int(torch.randint(10, 60, [1]))
+        x, y = torch.randint(radius, 256-radius, [2])
+        cellx = x // ppc
+        celly = y // ppc
+        if label[0, celly, cellx] == 1:
+            continue
+        else:
+            label[0, celly, cellx] = 1
+            label[1, celly, cellx] = shape_class
+            label[2, celly, cellx] = (x%ppc) / ppc
+            label[3, celly, cellx] = (y%ppc) / ppc
+            label[4, celly, cellx] = radius / 256
+
+        if shape_class == 0:
+            shape = getCircle(radius, x, y)
+        else:
+            angle = float(torch.pi * torch.randint(0, 89, [1]) / 180)
+            shape = getPolygon(shape_class+2, radius, angle, x, y)
+
+        img = torch.logical_or(img, shape)
+
+    img = img.to(torch.float32)
+
+    return img, label
 
 class DynamicShapesDataset(Dataset):
-    def __init__(self, classes, size, grid_size, max_shapes_per_image):
+    def __init__(self, classes, size, grid_size):
         self.x_range, self.y_range = 256, 256
-        self.dataset = []
-        self.labels = []
         self.classes = classes
         self.size = size
         self.grid_size = grid_size
-        self.max_shapes_per_image = max_shapes_per_image
-        self.build()
+        self.images = []
+        self.labels = []
+        self.max_shapes_per_image = grid_size
+        self.update()
 
-
-    def build(self):
-        ppc = self.x_range//self.grid_size
-        shapes_per_image = 1
-        for a in range(self.size):
-            if self.max_shapes_per_image > 1:
-                shapes_per_image = np.random.randint(1, self.max_shapes_per_image)
-            image_shapes = {}
-            for b in range(shapes_per_image):
-                x, y = np.random.randint(20, self.x_range - 20), np.random.randint(20, self.y_range - 20)
-                radius = np.random.randint(10, min(x, y, self.x_range - max(x, y)))
-                angle = int(np.pi*np.random.randint(359)/180)
-                shape_class = np.random.choice(self.classes)
-                cell = (y//ppc)*self.grid_size + x//ppc
-                if shape_class == 0:
-                    shape = shapes.Circle(radius)
-                    image_shapes[cell] = [shape_class, (2 * radius + 8) / self.x_range, (x + radius) / self.x_range, (y + radius) / self.y_range, x, y, shape]
-                else:
-                    shape = shapes.createPolygon(shape_class+2, radius, angle)
-                    image_shapes[cell] = [shape_class, (2 * radius + 8) / self.x_range, 0, 0, x, y, shape]
-
-            label = [np.zeros([self.grid_size, self.grid_size], dtype=np.float32) for b in range(5)]
-
-            # objectness, class, bbox
-            img = np.zeros([self.x_range, self.y_range])
-
-            for cell in image_shapes.keys():
-                shape_class, size, label_x, label_y, x, y, shape = image_shapes[cell]
-                img = shapes.addShape(img, shape, [x, y], self.x_range)
-                label_x, label_y = shape.center
-                cell_x, cell_y = cell % self.grid_size, cell // self.grid_size
-
-                label[0][cell_y][cell_x] = shape_class # class
-                label[1][cell_y][cell_x] = 1 # objectness
-                label[2][cell_y][cell_x] = size # bbox size
-                label[3][cell_y][cell_x] = label_x # bbox x
-                label[4][cell_y][cell_x] = label_y # bbox y
-
-            label = np.array(label)
-            self.dataset.append(deepcopy(img))
-            self.labels.append(deepcopy(label))
-
-        self.dataset = np.array(self.dataset)
-        self.labels = np.array(self.labels)
+    def update(self):
+        self.images = []
+        self.labels = []
+        for _ in range(self.size):
+            img, label = getRandomImage(self.classes, self.max_shapes_per_image, self.grid_size)
+            self.images.append(img)
+            self.labels.append(label)
 
     def __len__(self):
-        return len(self.labels)
+        return self.size
 
     def __getitem__(self, index):
-        img = self.dataset[index]
-        label = self.labels[index]
-
-        img = torch.tensor(img, dtype=torch.float32)
-        img = img.unsqueeze(0)
-
-        class_label = np.array(label[0], dtype=int)
-        objectness = torch.tensor(label[1], dtype=torch.float32)#.unsqueeze(0)
-        bbox = label[2:]
-
-        return img, class_label, objectness, bbox
+        return self.images[index], self.labels[index]

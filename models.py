@@ -35,7 +35,6 @@ class ShapeCNN(nn.Module):
         x = self.features(x)
         x = self.pred(x)
 
-        #x = x.permutate(0, 2, 3, 1)
         class_logits = x[:, :self.num_classes]
         objectness = torch.sigmoid(x[:, self.num_classes])
         bbox = torch.sigmoid(x[:, self.num_classes+1:])
