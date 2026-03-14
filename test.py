@@ -5,13 +5,15 @@ import matplotlib.patches as patches
 from torch.utils.data import DataLoader
 from copy import deepcopy
 
-import dataset
+import cached_dataset as dataset
 import models
 
 np.random.seed(17)
+torch.manual_seed(17)
 
 classes = [0, 1, 2, 3, 4, 5, 6]
-grid_size = 5
+grid_size = 8
+max_shapes = 3
 
 ppc = 256 // grid_size
 
@@ -31,17 +33,17 @@ label_colors = {
     2: "blue",
     3: "yellow",
     4: "orange",
-    5: "black",
+    5: "pink",
     6: "purple"
 }
 
 device = torch.device("xpu")
-m = models.ShapeCNN(len(classes), grid_size)
+m = models.ShapeCNN(len(classes))
 m.load_state_dict(torch.load("trained_models/model.pth"))
 m.to(device)
 m.eval()
 
-test_dataset = dataset.DynamicShapesDataset(classes, 10, grid_size)
+test_dataset = dataset.DynamicShapesDataset(classes, 10, grid_size, max_shapes, True)
 batch_size = len(test_dataset)
 data_loader = DataLoader(test_dataset, batch_size=1)
 img_ = []
@@ -59,24 +61,24 @@ for img, label in data_loader:
 
     boxes.append([])
     box_labels.append([])
-    pred_classes, pred_objectness, pred_box = m(img)
 
+    pred_objectness, pred_classes, pred_box = m(img)
     pred_classes = pred_classes.cpu().detach().squeeze(0)
     pred_objectness = pred_objectness.cpu().detach().squeeze(0)
     pred_box = pred_box.cpu().detach().squeeze(0)
     # x, y, size
 
 
-    for a in range(grid_size):
-        x_offset = a * ppc
-        for b in range(grid_size):
-            y_offset = b * ppc
+    for b in range(grid_size):
+        x_offset = b * ppc
+        for a in range(grid_size):
+            y_offset = a * ppc
             if objectness_label[a, b] == 1:
-                label_size, label_x, label_y = 3, int(x_offset + box_label[1, a, b] * ppc), int(y_offset + box_label[0, a, b] * ppc)
+                label_x, label_y, label_size = int(x_offset + box_label[0, a, b] * ppc), int(y_offset + box_label[1, a, b] * ppc), 3
                 box_labels[-1].append(patches.Circle((label_x, label_y), label_size, fill=True, color='green'))
-            if pred_objectness[a, b] >= 0.99:
-                pred_class = np.argmax(pred_classes[0, :, a, b])
-                size, x, y = int(pred_box[2, a, b]*256), int(x_offset + pred_box[1, a, b]*ppc), int(y_offset + pred_box[0, a, b]*ppc)
+            if pred_objectness[a, b] >= 0.9:
+                pred_class = int(np.argmax(pred_classes[:, a, b]))
+                x, y, size = int(x_offset + pred_box[0, a, b]*ppc), int(y_offset + pred_box[1, a, b]*ppc), 2*int(pred_box[2, a, b]*test_dataset.max_radius)
                 boxes[-1].append(patches.Rectangle((x-(size//2), y-(size//2)), size, size, linewidth=1, edgecolor=label_colors[pred_class], facecolor='none', label=label_translation[pred_class]))
 
 

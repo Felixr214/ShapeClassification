@@ -86,3 +86,28 @@ class DynamicShapesDataset(Dataset):
 
     def __getitem__(self, index):
         return self.images[index], self.labels[index]
+
+class ParallelDynamicShapesDataset(Dataset):
+    def __init__(self, classes, size, grid_size, innerBatchSize):
+        self.x_range, self.y_range = 256, 256
+        self.classes = classes
+        self.size = size
+        self.grid_size = grid_size
+        self.max_shapes_per_image = grid_size
+        self.innerBatchSize = innerBatchSize
+
+    def update(self):
+        images = []
+        labels = []
+        for _ in range(self.innerBatchSize):
+            img, label = getRandomImage(self.classes, self.max_shapes_per_image, self.grid_size)
+            images.append(img)
+            labels.append(label)
+
+        return torch.stack(images), torch.stack(labels)
+
+    def __len__(self):
+        return self.size
+
+    def __getitem__(self, index):
+        return self.update()
