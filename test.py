@@ -27,16 +27,6 @@ label_translation = {
     6: "octagon"
 }
 
-label_colors = {
-    0: "red",
-    1: "green",
-    2: "blue",
-    3: "yellow",
-    4: "orange",
-    5: "pink",
-    6: "purple"
-}
-
 device = torch.device("xpu")
 m = models.ShapeCNN(len(classes))
 m.load_state_dict(torch.load("trained_models/model.pth"))
@@ -49,6 +39,7 @@ data_loader = DataLoader(test_dataset, batch_size=1)
 img_ = []
 boxes = []
 box_labels = []
+shape_centers = []
 
 for img, label in data_loader:
     img_.append(deepcopy(img).numpy())
@@ -61,6 +52,7 @@ for img, label in data_loader:
 
     boxes.append([])
     box_labels.append([])
+    shape_centers.append([])
 
     pred_objectness, pred_classes, pred_box = m(img)
     pred_classes = pred_classes.cpu().detach().squeeze(0)
@@ -75,26 +67,26 @@ for img, label in data_loader:
             y_offset = a * ppc
             if objectness_label[a, b] == 1:
                 label_x, label_y, label_size = int(x_offset + box_label[0, a, b] * ppc), int(y_offset + box_label[1, a, b] * ppc), 3
-                box_labels[-1].append(patches.Circle((label_x, label_y), label_size, fill=True, color='green'))
-            if pred_objectness[a, b] >= 0.9:
+                shape_centers[-1].append(patches.Circle((label_x, label_y), label_size, fill=True, color='green'))
+            if pred_objectness[a, b] >= 0.95:
                 pred_class = int(np.argmax(pred_classes[:, a, b]))
                 x, y, size = int(x_offset + pred_box[0, a, b]*ppc), int(y_offset + pred_box[1, a, b]*ppc), 2*int(pred_box[2, a, b]*test_dataset.max_radius)
-                boxes[-1].append(patches.Rectangle((x-(size//2), y-(size//2)), size, size, linewidth=1, edgecolor=label_colors[pred_class], facecolor='none', label=label_translation[pred_class]))
+                boxes[-1].append(patches.Rectangle((x-(size//2), y-(size//2)), size, size, linewidth=2, edgecolor="red", facecolor='none'))
+                box_labels[-1].append([x-(size//2)+3, y-(size//2)-5, label_translation[pred_class]])
 
 
 i = 0
 for img in img_:
     fig, ax = plt.subplots()
     ax.imshow(img[0], cmap="gray_r")
-    print(f"{len(boxes[i])}/{len(box_labels[i])}")
-    for dot in box_labels[i]:
-        ax.add_patch(dot)
+    #print(f"{len(boxes[i])}/{len(shape_centers[i])}")
+    #for dot in shape_centers[i]:
+        #ax.add_patch(dot)
 
-    for box in boxes[i]:
+    for box_index in range(len(boxes[i])):
+        box = boxes[i][box_index]
         ax.add_patch(box)
+        text = ax.text(*box_labels[i][box_index], color="black", backgroundcolor="red")
 
-    #ax.set_title(label_translation[classes[i][0]])
-    if len(boxes[i]) >= 1:
-        ax.legend()
     fig.savefig(f"test_results/output_{i}.png")
     i+=1
