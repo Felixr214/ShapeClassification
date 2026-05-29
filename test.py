@@ -27,9 +27,9 @@ label_translation = {
     6: "octagon"
 }
 
-device = torch.device("xpu")
+device = torch.device("cpu")
 m = models.ShapeCNN(len(classes))
-m.load_state_dict(torch.load("trained_models/model.pth"))
+m.load_state_dict(torch.load("trained_models/model.pth", map_location=torch.device('cpu')))
 m.to(device)
 m.eval()
 
